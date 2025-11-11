@@ -4,19 +4,22 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import aiohttp
 from pathlib import Path
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 import srt
 from datetime import timedelta
 
 # הגדרות
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 
-translator = Translator()
+translator = GoogleTranslator(source='en', target='he')
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """פקודת התחלה"""
@@ -60,8 +63,39 @@ async def transcribe_with_groq(audio_path: str) -> dict:
 def translate_to_hebrew(text: str) -> str:
     """תרגום לעברית עם Google Translate"""
     try:
-        result = translator.translate(text, src='en', dest='he')
-        return result.text
+        # חלק לפסקאות קטנות אם הטקסט ארוך
+        if len(text) > 500:
+            # תרגום בחלקים
+            words = text.split()
+            chunks = []
+            current_chunk = []
+            current_length = 0
+            
+            for word in words:
+                if current_length + len(word) > 500:
+                    chunks.append(' '.join(current_chunk))
+                    current_chunk = [word]
+                    current_length = len(word)
+                else:
+                    current_chunk.append(word)
+                    current_length += len(word) + 1
+            
+            if current_chunk:
+                chunks.append(' '.join(current_chunk))
+            
+            # תרגום כל חלק
+            translated_chunks = []
+            for chunk in chunks:
+                try:
+                    translated = translator.translate(chunk)
+                    translated_chunks.append(translated)
+                except Exception as e:
+                    logger.error(f"Translation chunk error: {e}")
+                    translated_chunks.append(chunk)
+            
+            return ' '.join(translated_chunks)
+        else:
+            return translator.translate(text)
     except Exception as e:
         logger.error(f"Translation error: {e}")
         return text
@@ -99,6 +133,9 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # הורדת הקובץ
+        file = None
+        file_ext = None
+        
         if update.message.video:
             file = await update.message.video.get_file()
             file_ext = 'mp4'
@@ -123,7 +160,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         transcription = await transcribe_with_groq(str(media_path))
         
         if not transcription or 'segments' not in transcription:
-            await update.message.reply_text("❌ שגיאה בתמלול. נסה שוב.")
+            await update.message.reply_text("❌ שגיאה בתמלול. ודא שהאודיו באנגלית ונסה שוב.")
             return
         
         # תרגום ויצירת SRT
@@ -158,10 +195,24 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📝 *התמליל המלא בעברית:*\n\n{full_text}",
                 parse_mode='Markdown'
             )
+        else:
+            # אם הטקסט ארוך מדי, שלח בחלקים
+            chunks = [full_text[i:i+4000] for i in range(0, len(full_text), 4000)]
+            for idx, chunk in enumerate(chunks):
+                if idx == 0:
+                    await update.message.reply_text(
+                        f"📝 *התמליל המלא בעברית (חלק {idx+1}/{len(chunks)}):*\n\n{chunk}",
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"*חלק {idx+1}/{len(chunks)}:*\n\n{chunk}",
+                        parse_mode='Markdown'
+                    )
         
     except Exception as e:
         logger.error(f"Error handling media: {e}")
-        await update.message.reply_text(f"❌ שגיאה: {str(e)}")
+        await update.message.reply_text(f"❌ שגיאה: {str(e)}\n\nנסה שוב או שלח סרטון קצר יותר.")
     
     finally:
         # ניקוי קבצים זמניים
@@ -169,14 +220,16 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for file in temp_dir.glob('*'):
                 file.unlink()
             temp_dir.rmdir()
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
 
 def main():
     """הפעלת הבוט"""
     if not TELEGRAM_TOKEN or not GROQ_API_KEY:
-        logger.error("Missing TELEGRAM_TOKEN or GROQ_API_KEY")
+        logger.error("Missing TELEGRAM_TOKEN or GROQ_API_KEY environment variables!")
         return
+    
+    logger.info("Starting bot with SRT-only mode...")
     
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     
@@ -186,7 +239,7 @@ def main():
         handle_media
     ))
     
-    logger.info("Bot started!")
+    logger.info("Bot started successfully!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
