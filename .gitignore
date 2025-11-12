@@ -1,6 +1,4 @@
-# ===================================
 # Python
-# ===================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -35,9 +33,7 @@ wheels/
 *.egg
 MANIFEST
 
-# ===================================
-# סודות ותצורה - חשוב מאוד!
-# ===================================
+# סודות - חשוב מאוד!
 .env
 .env.local
 .env.production
@@ -46,11 +42,8 @@ MANIFEST
 *.pem
 secrets/
 config.ini
-settings.py
 
-# ===================================
 # קבצים זמניים של הבוט
-# ===================================
 temp_*/
 *.tmp
 *.log
@@ -58,49 +51,27 @@ temp_*/
 downloads/
 uploads/
 
-# ===================================
-# IDE & Editors
-# ===================================
-# VSCode
+# IDE
 .vscode/
 *.code-workspace
-
-# PyCharm
 .idea/
 *.iml
-
-# Sublime Text
 *.sublime-project
 *.sublime-workspace
-
-# Vim
 *.swp
 *.swo
 *~
 
-# Emacs
-*~
-\#*\#
-
-# ===================================
-# OS specific
-# ===================================
-# macOS
+# OS
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-
-# Linux
 .directory
 
-# ===================================
 # Testing
-# ===================================
 .pytest_cache/
 .coverage
 .coverage.*
@@ -110,35 +81,20 @@ htmlcov/
 coverage.xml
 *.cover
 
-# ===================================
-# Jupyter Notebook
-# ===================================
+# Jupyter
 .ipynb_checkpoints
 
-# ===================================
-# Docker (אל תיגנור אם אתה צריך להעלות!)
-# ===================================
-# Uncomment אם אתה לא רוצה להעלות Docker files
-# Dockerfile
-# docker-compose.yml
-# .dockerignore
-
-# ===================================
 # Database
-# ===================================
 *.db
 *.sqlite
 *.sqlite3
 
-# ===================================
-# Media files (סרטונים/אודיו גדולים)
-# ===================================
+# Media files (סרטונים גדולים)
 *.mp4
 *.avi
 *.mov
 *.mp3
 *.wav
 *.flac
-# אבל דוגמאות קטנות אפשר להשאיר:
 !example.mp4
 !sample.mp3
