@@ -4,9 +4,9 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import aiohttp
 from pathlib import Path
-from deep_translator import GoogleTranslator
 import srt
 from datetime import timedelta
+import requests
 
 # הגדרות
 logging.basicConfig(
@@ -18,8 +18,6 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
-
-translator = GoogleTranslator(source='en', target='he')
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """פקודת התחלה"""
@@ -61,41 +59,32 @@ async def transcribe_with_groq(audio_path: str) -> dict:
         return None
 
 def translate_to_hebrew(text: str) -> str:
-    """תרגום לעברית עם Google Translate"""
+    """תרגום לעברית עם Google Translate API (חינמי)"""
     try:
-        # חלק לפסקאות קטנות אם הטקסט ארוך
-        if len(text) > 500:
-            # תרגום בחלקים
-            words = text.split()
-            chunks = []
-            current_chunk = []
-            current_length = 0
-            
-            for word in words:
-                if current_length + len(word) > 500:
-                    chunks.append(' '.join(current_chunk))
-                    current_chunk = [word]
-                    current_length = len(word)
-                else:
-                    current_chunk.append(word)
-                    current_length += len(word) + 1
-            
-            if current_chunk:
-                chunks.append(' '.join(current_chunk))
-            
-            # תרגום כל חלק
-            translated_chunks = []
-            for chunk in chunks:
-                try:
-                    translated = translator.translate(chunk)
-                    translated_chunks.append(translated)
-                except Exception as e:
-                    logger.error(f"Translation chunk error: {e}")
-                    translated_chunks.append(chunk)
-            
-            return ' '.join(translated_chunks)
+        # שימוש ב-Google Translate API הפשוט
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            'client': 'gtx',
+            'sl': 'en',
+            'tl': 'he',
+            'dt': 't',
+            'q': text
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            # חילוץ התרגום
+            translated = ''
+            for sentence in result[0]:
+                if sentence[0]:
+                    translated += sentence[0]
+            return translated
         else:
-            return translator.translate(text)
+            logger.error(f"Translation API error: {response.status_code}")
+            return text
+            
     except Exception as e:
         logger.error(f"Translation error: {e}")
         return text
